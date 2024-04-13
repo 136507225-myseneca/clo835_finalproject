@@ -3,9 +3,28 @@ from pymysql import connections
 import os
 import random
 import argparse
-
+import boto3
+import logging
 
 app = Flask(__name__)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+# Directory where the downloaded image will be stored
+IMAGE_DIR = os.path.join('static', 'images')
+os.makedirs(IMAGE_DIR, exist_ok=True)
+
+def download_image_from_s3():
+    s3_client = boto3.client('s3')
+    BUCKET_NAME = os.environ.get("BUCKET_NAME")
+    OBJECT_NAME = os.environ.get("OBJECT_NAME")
+    local_file_name = os.path.join(IMAGE_DIR, 'background.jpg')
+    try:
+        s3_client.download_file(BUCKET_NAME, OBJECT_NAME, local_file_name)
+        logging.info(f"Downloaded image from S3: s3://{BUCKET_NAME}/{OBJECT_NAME}")
+    except Exception as e:
+        logging.error(f"Error downloading image from S3: {e}")
 
 DBHOST = os.environ.get("DBHOST") or "localhost"
 DBUSER = os.environ.get("DBUSER") or "root"
@@ -13,7 +32,12 @@ DBPWD = os.environ.get("DBPWD") or "passwors"
 DATABASE = os.environ.get("DATABASE") or "employees"
 COLOR_FROM_ENV = os.environ.get('APP_COLOR') or "lime"
 DBPORT = int(os.environ.get("DBPORT"))
+IMAGE_URL = os.getenv('IMAGE_URL', 'default_image.jpg') 
 
+if IMAGE_URL:
+    download_image_from_s3()
+else:
+        logging.error("S3 bucket name or object name environment variables are not set.")
 # Create a connection to the MySQL database
 db_conn = connections.Connection(
     host=DBHOST,
@@ -48,27 +72,29 @@ COLOR = random.choice(
 
 @app.route("/", methods=['GET', 'POST'])
 def home():
-    return render_template('addemp.html', color=color_codes[COLOR])
+    
+    header_names = os.getenv('HEADER_NAMES', 'Default Names')
+    return render_template('addemp.html', header_names=header_names, background_image_url=IMAGE_URL )
 
 
 @app.route("/app1", methods=['GET', 'POST'])
 def home1():
-    return render_template('addemp.html', color=color_codes[COLOR])
+    return render_template('addemp.html', background_image_url=IMAGE_URL)
 
 
 @app.route("/app2", methods=['GET', 'POST'])
 def home2():
-    return render_template('addemp.html', color=color_codes[COLOR])
+    return render_template('addemp.html', background_image_url=IMAGE_URL)
 
 
 @app.route("/app3", methods=['GET', 'POST'])
 def home3():
-    return render_template('addemp.html', color=color_codes[COLOR])
+    return render_template('addemp.html', background_image_url=IMAGE_URL)
 
 
 @app.route("/about", methods=['GET', 'POST'])
 def about():
-    return render_template('about.html', color=color_codes[COLOR])
+    return render_template('about.html', background_image_url=IMAGE_URL)
 
 
 @app.route("/addemp", methods=['POST'])
@@ -93,12 +119,12 @@ def AddEmp():
         cursor.close()
 
     print("all modification done...")
-    return render_template('addempoutput.html', name=emp_name, color=color_codes[COLOR])
+    return render_template('addempoutput.html', name=emp_name, background_image_url=IMAGE_URL)
 
 
 @app.route("/getemp", methods=['GET', 'POST'])
 def GetEmp():
-    return render_template("getemp.html", color=color_codes[COLOR])
+    return render_template("getemp.html", background_image_url=IMAGE_URL)
 
 
 @app.route("/fetchdata", methods=['GET', 'POST'])
@@ -127,7 +153,7 @@ def FetchData():
         cursor.close()
 
     return render_template("getempoutput.html", id=output["emp_id"], fname=output["first_name"],
-                           lname=output["last_name"], interest=output["primary_skills"], location=output["location"], color=color_codes[COLOR])
+                           lname=output["last_name"], interest=output["primary_skills"], location=output["location"], background_image_url=IMAGE_URL)
 
 
 if __name__ == '__main__':
@@ -156,4 +182,4 @@ if __name__ == '__main__':
               "' expected one of " + SUPPORTED_COLORS)
         exit(1)
 
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=81, debug=True)
